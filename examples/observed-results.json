@@ -1,0 +1,346 @@
+{
+  "name": "Document approval gate: PostgreSQL integration evidence",
+  "startedAt": "2026-10-05T23:11:08.621Z",
+  "environment": {
+    "node": "v26.10.0",
+    "postgresql": "18.6"
+  },
+  "scope": {
+    "database": "Real PostgreSQL transactions, locks, constraints, and rollback",
+    "api": "Real local HTTP requests through configured tenant-scoped bearer principals",
+    "erp": "Local synthetic HTTP ERP; in-memory ledger explicitly implements Idempotency-Key deduplication",
+    "deliveryContract": "At-least-once delivery; one remote business write requires ERP-side durable idempotency",
+    "fixtures": "Synthetic invoices and identities"
+  },
+  "sourceSha256": {
+    "db/schema.sql": "92ef4c685fc06a21ab0afde679c66f4fe1e9ffdebbd19a03bc7646979d1b50a1",
+    "src/api.js": "83628da2ebee3f0c9f7e1bb277df8cbbb9f65f3a058d5ee7ec4696e30698d24a",
+    "src/service.js": "59ac2aebc9ea5ce737eb7279401df627105b2edbe0c2b645f0a1da2b91e51eb4",
+    "src/worker.js": "3fa6b022f73fc93a8cbb40466008efe731f4851dff5c11a0d8f8a48ad26c6f13",
+    "test/integration.test.js": "5b6363feae1ee186a69ef066d3d418ff265c5eef8a338e8023d61d85d35b4e46",
+    "test/synthetic-erp.js": "4d212a452e59c09a131746991a7bbbd930ad2be1ff0b7aaa6f87acaab3a53a18"
+  },
+  "scenarios": [
+    {
+      "id": "intake-concurrency",
+      "name": "Concurrent duplicate intake creates one document; conflicting payload returns 409",
+      "result": "passed",
+      "durationMs": 83,
+      "evidence": {
+        "concurrentRequests": 12,
+        "createdResponses": 1,
+        "replayResponses": 11,
+        "documents": 1,
+        "intakeAuditEvents": 1,
+        "conflictingPayloadStatus": 409
+      }
+    },
+    {
+      "id": "tenant-isolation",
+      "name": "Tenant principals scope reads, revisions and approvals; body tenant IDs have no authority",
+      "result": "passed",
+      "durationMs": 18,
+      "evidence": {
+        "crossTenantRead": 404,
+        "crossTenantRevise": 404,
+        "crossTenantApprove": 404,
+        "principalTenantWins": "tenant-b",
+        "sameIntakeKeyAcrossTenants": "separate documents",
+        "missingOrUnknownToken": 401
+      }
+    },
+    {
+      "id": "reviewer-role",
+      "name": "Submitter receives 403 for approval and rejection",
+      "result": "passed",
+      "durationMs": 7,
+      "evidence": {
+        "submitterApprove": 403,
+        "submitterReject": 403,
+        "outboxRows": 0
+      }
+    },
+    {
+      "id": "stale-revision",
+      "name": "Revised data requires review of the current revision",
+      "result": "passed",
+      "durationMs": 17,
+      "evidence": {
+        "initialRevision": 1,
+        "currentRevision": 2,
+        "staleApprovalStatus": 409,
+        "approvedRevision": 2,
+        "approvedAmountMinor": 12950
+      }
+    },
+    {
+      "id": "review-gates-delivery",
+      "name": "An unapproved document produces no ERP request",
+      "result": "passed",
+      "durationMs": 11,
+      "evidence": {
+        "workerOutcome": "idle",
+        "erpRequests": 0,
+        "remoteBusinessWrites": 0
+      }
+    },
+    {
+      "id": "approval-atomic-success",
+      "name": "Concurrent approval commits one frozen snapshot, approval audit and outbox message",
+      "result": "passed",
+      "durationMs": 22,
+      "evidence": {
+        "concurrentApprovals": 8,
+        "status": "APPROVED",
+        "approvalAudits": 1,
+        "outboxRows": 1,
+        "outboxEqualsApprovedSnapshot": true,
+        "snapshot": {
+          "revision": 1,
+          "tenantId": "tenant-a",
+          "extracted": {
+            "lines": [
+              {
+                "quantity": 2,
+                "description": "Demonstration supplies",
+                "unitPriceMinor": 6425
+              }
+            ],
+            "currency": "USD",
+            "supplier": "Synthetic Paper Company",
+            "amountMinor": 12850,
+            "invoiceNumber": "DEMO-2048"
+          },
+          "approvedAt": "2026-10-05T23:11:08.862Z",
+          "approvedBy": "approver-a",
+          "documentId": "4f5e417e-1ae5-4300-ac2e-d67e8054e14c"
+        }
+      }
+    },
+    {
+      "id": "approval-atomic-rollback",
+      "name": "Injected audit failure rolls back approval, frozen snapshot and outbox together",
+      "result": "passed",
+      "durationMs": 17,
+      "evidence": {
+        "injectedFailure": "PostgreSQL trigger raises during APPROVED audit insertion",
+        "sqlState": "P0001",
+        "approvalHttpStatus": 500,
+        "afterRollback": {
+          "status": "REVIEW",
+          "approvedSnapshot": null,
+          "outboxRows": 0,
+          "approvalAudits": 0
+        },
+        "retryAfterFaultRemoved": "APPROVED"
+      }
+    },
+    {
+      "id": "frozen-after-approval",
+      "name": "Approved document rejects edits and preserves the queued snapshot",
+      "result": "passed",
+      "durationMs": 12,
+      "evidence": {
+        "editStatus": 409,
+        "documentRevision": 1,
+        "queuedSnapshotPreserved": true
+      }
+    },
+    {
+      "id": "concurrent-workers",
+      "name": "Eight competing workers claim one approved delivery once",
+      "result": "passed",
+      "durationMs": 22,
+      "evidence": {
+        "workers": 8,
+        "synced": 1,
+        "idle": 7,
+        "erpRequests": 1,
+        "remoteBusinessWrites": 1,
+        "outboxAttempts": 1
+      }
+    },
+    {
+      "id": "accepted-response-lost",
+      "name": "ERP acceptance followed by connection loss or client timeout retries the same business write",
+      "result": "passed",
+      "durationMs": 144,
+      "evidence": {
+        "contract": "One business write per accepted document across both HTTP failure modes",
+        "cases": [
+          {
+            "fault": "disconnect-after-accept",
+            "timeoutMs": 1000,
+            "firstWorkerOutcome": "retry",
+            "firstError": "fetch failed",
+            "retryWorkerOutcome": "synced",
+            "stableIdempotencyKey": "approval-gate:3a008ed0-4794-46a8-973f-54c772a62c57",
+            "remoteBusinessWrites": 1,
+            "httpAttempts": 2,
+            "outboxAttempts": 2,
+            "finalStatus": "SYNCED",
+            "requests": [
+              {
+                "attempt": 1,
+                "idempotencyKey": "approval-gate:3a008ed0-4794-46a8-973f-54c772a62c57",
+                "duplicate": false,
+                "payload": {
+                  "revision": 1,
+                  "tenantId": "tenant-a",
+                  "extracted": {
+                    "lines": [
+                      {
+                        "quantity": 2,
+                        "description": "Demonstration supplies",
+                        "unitPriceMinor": 6425
+                      }
+                    ],
+                    "currency": "USD",
+                    "supplier": "Synthetic Paper Company",
+                    "amountMinor": 12850,
+                    "invoiceNumber": "DEMO-2048"
+                  },
+                  "approvedAt": "2026-10-05T23:11:08.960Z",
+                  "approvedBy": "approver-a",
+                  "documentId": "8a4d83df-d303-4870-a488-7dbc87e5265b"
+                },
+                "remoteBusinessWrites": 1,
+                "response": "connection-dropped-after-ledger-write"
+              },
+              {
+                "attempt": 2,
+                "idempotencyKey": "approval-gate:3a008ed0-4794-46a8-973f-54c772a62c57",
+                "duplicate": true,
+                "payload": {
+                  "revision": 1,
+                  "tenantId": "tenant-a",
+                  "extracted": {
+                    "lines": [
+                      {
+                        "quantity": 2,
+                        "description": "Demonstration supplies",
+                        "unitPriceMinor": 6425
+                      }
+                    ],
+                    "currency": "USD",
+                    "supplier": "Synthetic Paper Company",
+                    "amountMinor": 12850,
+                    "invoiceNumber": "DEMO-2048"
+                  },
+                  "approvedAt": "2026-10-05T23:11:08.960Z",
+                  "approvedBy": "approver-a",
+                  "documentId": "8a4d83df-d303-4870-a488-7dbc87e5265b"
+                },
+                "remoteBusinessWrites": 1,
+                "response": "200-idempotent-replay"
+              }
+            ]
+          },
+          {
+            "fault": "timeout-after-accept",
+            "timeoutMs": 100,
+            "firstWorkerOutcome": "retry",
+            "firstError": "This operation was aborted",
+            "retryWorkerOutcome": "synced",
+            "stableIdempotencyKey": "approval-gate:9b27bc0d-abba-485d-a0e6-0c2ae6a15a28",
+            "remoteBusinessWrites": 1,
+            "httpAttempts": 2,
+            "outboxAttempts": 2,
+            "finalStatus": "SYNCED",
+            "requests": [
+              {
+                "attempt": 1,
+                "idempotencyKey": "approval-gate:9b27bc0d-abba-485d-a0e6-0c2ae6a15a28",
+                "duplicate": false,
+                "payload": {
+                  "revision": 1,
+                  "tenantId": "tenant-a",
+                  "extracted": {
+                    "lines": [
+                      {
+                        "quantity": 2,
+                        "description": "Demonstration supplies",
+                        "unitPriceMinor": 6425
+                      }
+                    ],
+                    "currency": "USD",
+                    "supplier": "Synthetic Paper Company",
+                    "amountMinor": 12850,
+                    "invoiceNumber": "DEMO-2048"
+                  },
+                  "approvedAt": "2026-10-05T23:11:08.981Z",
+                  "approvedBy": "approver-a",
+                  "documentId": "75939884-1729-4286-b995-e53c3f2e4024"
+                },
+                "remoteBusinessWrites": 1,
+                "response": "response-withheld-until-client-timeout"
+              },
+              {
+                "attempt": 2,
+                "idempotencyKey": "approval-gate:9b27bc0d-abba-485d-a0e6-0c2ae6a15a28",
+                "duplicate": true,
+                "payload": {
+                  "revision": 1,
+                  "tenantId": "tenant-a",
+                  "extracted": {
+                    "lines": [
+                      {
+                        "quantity": 2,
+                        "description": "Demonstration supplies",
+                        "unitPriceMinor": 6425
+                      }
+                    ],
+                    "currency": "USD",
+                    "supplier": "Synthetic Paper Company",
+                    "amountMinor": 12850,
+                    "invoiceNumber": "DEMO-2048"
+                  },
+                  "approvedAt": "2026-10-05T23:11:08.981Z",
+                  "approvedBy": "approver-a",
+                  "documentId": "75939884-1729-4286-b995-e53c3f2e4024"
+                },
+                "remoteBusinessWrites": 1,
+                "response": "200-idempotent-replay"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "rejection-gates-delivery",
+      "name": "Reviewer rejection records its reason and produces no outbox or ERP request",
+      "result": "passed",
+      "durationMs": 9,
+      "evidence": {
+        "status": "REJECTED",
+        "reason": "Synthetic invoice total needs correction",
+        "rejectionAudits": 1,
+        "outboxRows": 0,
+        "erpRequests": 0
+      }
+    },
+    {
+      "id": "expired-lease-fencing",
+      "name": "Expired claim is retried; the stale worker yields to the new claim",
+      "result": "passed",
+      "durationMs": 18,
+      "evidence": {
+        "fault": "Database lease expiry injected while first HTTP response is held",
+        "replacementWorker": "synced",
+        "staleWorker": "lease_lost",
+        "remoteBusinessWrites": 1,
+        "sameIdempotencyKey": true,
+        "outboxAttempts": 2,
+        "finalStatus": "SYNCED"
+      }
+    }
+  ],
+  "finishedAt": "2026-10-05T23:11:09.140Z",
+  "summary": {
+    "expected": 12,
+    "passed": 12,
+    "failed": 0,
+    "result": "passed"
+  }
+}
