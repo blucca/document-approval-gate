@@ -1,6 +1,6 @@
 {
   "name": "Document approval gate: PostgreSQL integration evidence",
-  "startedAt": "2026-10-07T00:14:33.236Z",
+  "startedAt": "2026-10-07T00:26:51.430Z",
   "environment": {
     "node": "v26.10.0",
     "postgresql": "18.6"
@@ -17,7 +17,7 @@
     "src/api.js": "96126204b900cfe1d53368645490126397ce8d191e7ce2c20b263f1356636914",
     "src/service.js": "d8f66f53ec97d9fd6899921492ba42d033d0f0ae83209645817b03defe3b5906",
     "src/worker.js": "3fa6b022f73fc93a8cbb40466008efe731f4851dff5c11a0d8f8a48ad26c6f13",
-    "test/integration.test.js": "3c07eea1339e21222be6be0292cef335dab37404161b19956d6329e7035db6dc",
+    "test/integration.test.js": "54f9cc98e76fc48f0698f472c2f0b407ddbe0d94bfc75336358828597a080433",
     "test/synthetic-erp.js": "4d212a452e59c09a131746991a7bbbd930ad2be1ff0b7aaa6f87acaab3a53a18"
   },
   "scenarios": [
@@ -25,7 +25,7 @@
       "id": "intake-concurrency",
       "name": "Concurrent duplicate intake creates one document; conflicting payload returns 409",
       "result": "passed",
-      "durationMs": 82,
+      "durationMs": 84,
       "evidence": {
         "concurrentRequests": 12,
         "createdResponses": 1,
@@ -39,7 +39,7 @@
       "id": "tenant-isolation",
       "name": "Tenant principals scope reads, revisions and approvals; body tenant IDs have no authority",
       "result": "passed",
-      "durationMs": 17,
+      "durationMs": 18,
       "evidence": {
         "crossTenantRead": 404,
         "crossTenantRevise": 404,
@@ -64,7 +64,7 @@
       "id": "stale-revision",
       "name": "Revised data requires review of the current revision",
       "result": "passed",
-      "durationMs": 17,
+      "durationMs": 15,
       "evidence": {
         "initialRevision": 1,
         "currentRevision": 2,
@@ -77,7 +77,7 @@
       "id": "review-gates-delivery",
       "name": "An unapproved document produces no ERP request",
       "result": "passed",
-      "durationMs": 12,
+      "durationMs": 9,
       "evidence": {
         "workerOutcome": "idle",
         "erpRequests": 0,
@@ -111,9 +111,9 @@
             "amountMinor": 12850,
             "invoiceNumber": "DEMO-2048"
           },
-          "approvedAt": "2026-10-07T00:14:33.519Z",
+          "approvedAt": "2026-10-07T00:26:51.677Z",
           "approvedBy": "approver-a",
-          "documentId": "4f22d81d-af59-46a9-b4ce-ae678032bc77"
+          "documentId": "ad2373fa-2b3c-4736-882b-68a9e89f9e1a"
         }
       }
     },
@@ -121,7 +121,7 @@
       "id": "approval-atomic-rollback",
       "name": "Injected audit failure rolls back approval, frozen snapshot and outbox together",
       "result": "passed",
-      "durationMs": 20,
+      "durationMs": 17,
       "evidence": {
         "injectedFailure": "PostgreSQL trigger raises during APPROVED audit insertion",
         "sqlState": "P0001",
@@ -150,7 +150,7 @@
       "id": "concurrent-workers",
       "name": "Eight competing workers claim one approved delivery once",
       "result": "passed",
-      "durationMs": 22,
+      "durationMs": 24,
       "evidence": {
         "workers": 8,
         "synced": 1,
@@ -164,7 +164,7 @@
       "id": "accepted-response-lost",
       "name": "ERP acceptance followed by connection loss or client timeout retries the same business write",
       "result": "passed",
-      "durationMs": 144,
+      "durationMs": 143,
       "evidence": {
         "contract": "One business write per accepted document across both HTTP failure modes",
         "cases": [
@@ -174,7 +174,7 @@
             "firstWorkerOutcome": "retry",
             "firstError": "fetch failed",
             "retryWorkerOutcome": "synced",
-            "stableIdempotencyKey": "approval-gate:72b61709-4379-48cf-bd09-7cf5d0ed0958",
+            "stableIdempotencyKey": "approval-gate:d8391a50-9a13-484a-8914-0d0170062fcc",
             "remoteBusinessWrites": 1,
             "httpAttempts": 2,
             "outboxAttempts": 2,
@@ -182,7 +182,7 @@
             "requests": [
               {
                 "attempt": 1,
-                "idempotencyKey": "approval-gate:72b61709-4379-48cf-bd09-7cf5d0ed0958",
+                "idempotencyKey": "approval-gate:d8391a50-9a13-484a-8914-0d0170062fcc",
                 "duplicate": false,
                 "payload": {
                   "revision": 1,
@@ -200,16 +200,16 @@
                     "amountMinor": 12850,
                     "invoiceNumber": "DEMO-2048"
                   },
-                  "approvedAt": "2026-10-07T00:14:33.622Z",
+                  "approvedAt": "2026-10-07T00:26:51.777Z",
                   "approvedBy": "approver-a",
-                  "documentId": "83940eb8-35f1-4b81-99f9-fd1a7bd45533"
+                  "documentId": "3ca8eaa3-3ab1-444d-8463-a211026f72c5"
                 },
                 "remoteBusinessWrites": 1,
                 "response": "connection-dropped-after-ledger-write"
               },
               {
                 "attempt": 2,
-                "idempotencyKey": "approval-gate:72b61709-4379-48cf-bd09-7cf5d0ed0958",
+                "idempotencyKey": "approval-gate:d8391a50-9a13-484a-8914-0d0170062fcc",
                 "duplicate": true,
                 "payload": {
                   "revision": 1,
@@ -227,9 +227,9 @@
                     "amountMinor": 12850,
                     "invoiceNumber": "DEMO-2048"
                   },
-                  "approvedAt": "2026-10-07T00:14:33.622Z",
+                  "approvedAt": "2026-10-07T00:26:51.777Z",
                   "approvedBy": "approver-a",
-                  "documentId": "83940eb8-35f1-4b81-99f9-fd1a7bd45533"
+                  "documentId": "3ca8eaa3-3ab1-444d-8463-a211026f72c5"
                 },
                 "remoteBusinessWrites": 1,
                 "response": "200-idempotent-replay"
@@ -242,7 +242,7 @@
             "firstWorkerOutcome": "retry",
             "firstError": "This operation was aborted",
             "retryWorkerOutcome": "synced",
-            "stableIdempotencyKey": "approval-gate:124c002e-7f59-40ac-b694-46477b1d90ee",
+            "stableIdempotencyKey": "approval-gate:cbb66b42-9ac6-42ab-934c-8839438e02c2",
             "remoteBusinessWrites": 1,
             "httpAttempts": 2,
             "outboxAttempts": 2,
@@ -250,7 +250,7 @@
             "requests": [
               {
                 "attempt": 1,
-                "idempotencyKey": "approval-gate:124c002e-7f59-40ac-b694-46477b1d90ee",
+                "idempotencyKey": "approval-gate:cbb66b42-9ac6-42ab-934c-8839438e02c2",
                 "duplicate": false,
                 "payload": {
                   "revision": 1,
@@ -268,16 +268,16 @@
                     "amountMinor": 12850,
                     "invoiceNumber": "DEMO-2048"
                   },
-                  "approvedAt": "2026-10-07T00:14:33.643Z",
+                  "approvedAt": "2026-10-07T00:26:51.798Z",
                   "approvedBy": "approver-a",
-                  "documentId": "3ef42156-6a3e-4591-b398-f6d6bb633ea8"
+                  "documentId": "d2bf3f75-79aa-4b4b-8abd-c7d93fe66737"
                 },
                 "remoteBusinessWrites": 1,
                 "response": "response-withheld-until-client-timeout"
               },
               {
                 "attempt": 2,
-                "idempotencyKey": "approval-gate:124c002e-7f59-40ac-b694-46477b1d90ee",
+                "idempotencyKey": "approval-gate:cbb66b42-9ac6-42ab-934c-8839438e02c2",
                 "duplicate": true,
                 "payload": {
                   "revision": 1,
@@ -295,9 +295,9 @@
                     "amountMinor": 12850,
                     "invoiceNumber": "DEMO-2048"
                   },
-                  "approvedAt": "2026-10-07T00:14:33.643Z",
+                  "approvedAt": "2026-10-07T00:26:51.798Z",
                   "approvedBy": "approver-a",
-                  "documentId": "3ef42156-6a3e-4591-b398-f6d6bb633ea8"
+                  "documentId": "d2bf3f75-79aa-4b4b-8abd-c7d93fe66737"
                 },
                 "remoteBusinessWrites": 1,
                 "response": "200-idempotent-replay"
@@ -311,7 +311,7 @@
       "id": "rejection-gates-delivery",
       "name": "Reviewer rejection records its reason and produces no outbox or ERP request",
       "result": "passed",
-      "durationMs": 9,
+      "durationMs": 10,
       "evidence": {
         "status": "REJECTED",
         "reason": "Synthetic invoice total needs correction",
@@ -324,7 +324,7 @@
       "id": "expired-lease-fencing",
       "name": "Expired claim is retried; the stale worker yields to the new claim",
       "result": "passed",
-      "durationMs": 18,
+      "durationMs": 20,
       "evidence": {
         "fault": "Database lease expiry injected while first HTTP response is held",
         "replacementWorker": "synced",
@@ -339,7 +339,7 @@
       "id": "review-read-model",
       "name": "Review queue and delivery history stay within the authenticated tenant",
       "result": "passed",
-      "durationMs": 43,
+      "durationMs": 46,
       "evidence": {
         "ownQueueCount": 1,
         "crossTenantHistoryStatus": 404,
@@ -357,11 +357,11 @@
       }
     }
   ],
-  "finishedAt": "2026-10-07T00:14:33.851Z",
+  "finishedAt": "2026-10-07T00:26:52.013Z",
   "summary": {
-    "expected": 12,
+    "expected": 13,
     "passed": 13,
     "failed": 0,
-    "result": "failed"
+    "result": "passed"
   }
 }

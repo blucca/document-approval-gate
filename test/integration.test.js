@@ -43,6 +43,7 @@ let api;
 let baseUrl;
 const erps = [];
 const serverErrors = [];
+let scenarioCount = 0;
 
 async function persistReport() {
   if (!process.env.APPROVAL_GATE_REPORT) return;
@@ -52,6 +53,7 @@ async function persistReport() {
 }
 
 function scenario(id, name, run) {
+  scenarioCount += 1;
   test(name, { timeout: 15_000 }, async () => {
     const started = performance.now();
     try {
@@ -138,7 +140,7 @@ afterEach(async () => {
 after(async () => {
   report.finishedAt = new Date().toISOString();
   report.summary = {
-    expected: 12,
+    expected: scenarioCount,
     passed: report.scenarios.filter(s => s.result === 'passed').length,
     failed: report.scenarios.filter(s => s.result === 'failed').length,
   };
