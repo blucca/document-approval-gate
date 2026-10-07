@@ -137,6 +137,30 @@ export async function getDocument({ pool, principal, id }) {
   return { document: documentJson(await selectDocument(pool, principal.tenantId, id)) };
 }
 
+export async function listDocuments({ pool, principal }) {
+  authorize(principal);
+  const { rows } = await pool.query(
+    'SELECT * FROM documents WHERE tenant_id = $1 ORDER BY created_at DESC, id DESC LIMIT 100',
+    [principal.tenantId],
+  );
+  return { documents: rows.map(documentJson) };
+}
+
+export async function getDocumentHistory({ pool, principal, id }) {
+  authorize(principal);
+  await selectDocument(pool, principal.tenantId, id);
+  const [events, jobs] = await Promise.all([
+    pool.query(`SELECT id, event_type AS "eventType", revision, actor_id AS "actorId", details,
+      created_at AS "createdAt" FROM audit_events
+      WHERE tenant_id = $1 AND document_id = $2 ORDER BY id`, [principal.tenantId, id]),
+    pool.query(`SELECT id, status, attempts, idempotency_key AS "idempotencyKey",
+      last_error AS "lastError", remote_response AS "remoteResponse", payload
+      FROM outbox WHERE tenant_id = $1 AND document_id = $2 ORDER BY revision DESC LIMIT 1`,
+    [principal.tenantId, id]),
+  ]);
+  return { events: events.rows, delivery: jobs.rows[0] ?? null };
+}
+
 function requireRevision(row, revision) {
   if (row.revision !== revision) {
     throw new AppError(409, 'STALE_REVISION', `Current revision is ${row.revision}; refresh before deciding.`);

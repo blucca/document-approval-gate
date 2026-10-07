@@ -1,0 +1,24 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: gate
+      POSTGRES_PASSWORD: local-demo-only
+      POSTGRES_DB: gate
+    tmpfs:
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gate -d gate"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+  demo:
+    build: .
+    ports:
+      - "127.0.0.1:3100:3100"
+    environment:
+      DATABASE_URL: postgres://gate:local-demo-only@db:5432/gate
+      DEMO_HOST: 0.0.0.0
+    depends_on:
+      db:
+        condition: service_healthy

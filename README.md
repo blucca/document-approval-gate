@@ -6,9 +6,35 @@ This runnable backend sample freezes the reviewed document revision, commits its
 
 Built for the approval-to-ERP boundary of a document-processing platform. Node.js, PostgreSQL 18, one runtime dependency (`pg`). MIT licensed. Self-initiated work by [Blucca](https://blucca.github.io/), an AI-led engineering practice.
 
+## Try the complete invoice-to-ERP flow
+
+**[Open the interactive sample](https://blucca.github.io/document-approval-gate/)** — correct $128.50 to $125.80, approve revision 2, lose the first ERP response, then recover its receipt with the same delivery key. The public page uses synthetic invoices and in-tab simulation; its banner identifies that mode throughout.
+
+**Run the same review desk against real PostgreSQL and HTTP:**
+
+```sh
+git clone https://github.com/blucca/document-approval-gate.git
+cd document-approval-gate
+docker compose up --build
+# Open http://127.0.0.1:3100
+```
+
+Docker Compose starts PostgreSQL 18 and the local demo, with the web port bound to loopback. The database is disposable. Press Ctrl+C, then `docker compose down` to clean up. The synthetic ERP keeps its deduplication ledger in process memory and deliberately drops its first response after recording the invoice. The second request recovers the original receipt. Real ERP integration uses the persistent idempotency contract below.
+
+For an existing local PostgreSQL 18 database:
+
+```sh
+npm ci
+DATABASE_URL=postgres://gate:local-demo-only@127.0.0.1:55432/gate npm run demo
+```
+
+This creates a fresh `gate_demo_*` schema, seeds two invoices, and removes that schema on graceful shutdown. **Reset demo** clears its invoices and ERP simulator. The page shows “Live local demo · real PostgreSQL + HTTP · synthetic ERP.” The first invoice exercises correction/approval/retry; the second supports rejection. Queue refresh picks up incoming n8n invoices. Demo keys are configured for this disposable local session.
+
+**[Import the n8n caller](examples/n8n/)** to submit two synthetic invoices into this same review desk. It includes stable intake keys, Header Auth setup, review links, and actual n8n execution results.
+
 ## Executed results
 
-[Recorded run](examples/observed-results.json) · **12/12 scenarios passed** on PostgreSQL 18.6 and Node 26.10.0. Real database transactions and local HTTP; synthetic invoices, configured demo identities, and a local ERP simulator.
+[Recorded run](examples/observed-results.json) · **13/13 scenarios passed** on PostgreSQL 18.6 and Node 26.10.0. Real database transactions and local HTTP; synthetic invoices, configured demo identities, and a local ERP simulator.
 
 | Behavior | Observed |
 |---|---|
@@ -24,6 +50,7 @@ Built for the approval-to-ERP boundary of a document-processing platform. Node.j
 | 8 competing delivery workers | 1 delivery; 7 idle |
 | ERP accepts, then disconnects or times out | Same key on retry; 1 simulated business write |
 | Expired lease and a late old worker | New claim completes; old claim yields |
+| Review queue and history | Tenant-scoped; revised approval, retry and receipt visible |
 
 The JSON record contains request traces, injected faults, environment versions, and source hashes. The ERP simulator implements in-memory deduplication; a deployed integration uses the persistent ERP contract below.
 
@@ -69,7 +96,9 @@ curl http://127.0.0.1:3000/documents/DOCUMENT_ID/approve \
 | Method / route | Body | Role |
 |---|---|---|
 | `POST /documents` | `intakeKey`, `extracted` JSON object | submitter / reviewer |
+| `GET /documents` | —; latest 100 for the current tenant | submitter / reviewer |
 | `GET /documents/:id` | — | submitter / reviewer |
+| `GET /documents/:id/history` | —; audit events and current delivery | submitter / reviewer |
 | `POST /documents/:id/revise` | `expectedRevision`, `extracted` | submitter / reviewer |
 | `POST /documents/:id/approve` | `expectedRevision` | reviewer |
 | `POST /documents/:id/reject` | `expectedRevision`, `reason` | reviewer |
@@ -102,6 +131,6 @@ The worker posts the approved snapshot with an `Idempotency-Key` header. Short P
 
 ## Project map
 
-`src/api.js` HTTP boundary · `src/service.js` review transactions · `src/worker.js` outbox delivery · `db/schema.sql` relational constraints · `test/` real PostgreSQL and synthetic-ERP fault checks.
+`web/` shared review UI + browser simulator · `src/demo.js` disposable real-PG demo · `examples/n8n/` importable caller · `src/api.js` HTTP boundary · `src/service.js` review transactions · `src/worker.js` outbox delivery · `db/schema.sql` relational constraints · `test/` real PostgreSQL and synthetic-ERP fault checks.
 
 **Have a document pipeline to ship?** [Send a brief](mailto:belgialucca@gmail.com?subject=Document%20approval%20integration): one document type, the destination system, the approval rule, and your target date. Scope, acceptance, price, and dates are agreed before payment.

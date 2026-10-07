@@ -1,0 +1,52 @@
+name: Run the local demo
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Start the documented Docker Compose stack
+        run: docker compose up --build -d --wait
+      - name: Open the demo and follow its lost-response path
+        run: |
+          curl --fail --retry 10 --retry-connrefused --retry-delay 2 http://127.0.0.1:3100/config.json
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const base = 'http://127.0.0.1:3100';
+          const page = await fetch(base);
+          assert.equal(page.status, 200);
+          assert.match(await page.text(), /Document approval gate/);
+          const call = async (path, body) => {
+            const response = await fetch(base + path, {
+              method: body ? 'POST' : 'GET',
+              headers: {'Content-Type': 'application/json', Authorization: 'Bearer demo-review'},
+              body: body ? JSON.stringify(body) : undefined,
+            });
+            assert.equal(response.ok, true, `${path}: ${response.status}`);
+            return response.json();
+          };
+          const { documents } = await call('/api/documents');
+          const doc = documents.find(d => d.extracted.invoiceNumber === 'DEMO-2048');
+          const path = `/api/documents/${doc.id}`;
+          await call(path + '/revise', { expectedRevision: 1, extracted: {...doc.extracted, amountMinor: 12580} });
+          await call(path + '/approve', { expectedRevision: 2 });
+          assert.equal((await call('/demo/deliver', {})).outcome, 'retry');
+          assert.equal((await call('/demo/deliver', {})).outcome, 'synced');
+          const erp = await call('/demo/erp');
+          assert.equal(erp.requests.length, 2);
+          assert.equal(erp.businessWrites, 1);
+          assert.equal(erp.requests[0].idempotencyKey, erp.requests[1].idempotencyKey);
+          assert.equal(erp.requests[1].payload.extracted.amountMinor, 12580);
+          console.log('Real Docker Compose / PostgreSQL / HTTP: revised approval, 2 attempts, 1 synthetic ERP write.');
+          NODE
+      - name: Container logs
+        if: always()
+        run: docker compose logs
+      - name: Stop the disposable stack
+        if: always()
+        run: docker compose down

@@ -1,0 +1,217 @@
+{
+  "scope": "Two-invoice n8n caller: local HTTP contract mocks and a separate native CLI run against the real PostgreSQL-backed local Gate. All invoices and identities are synthetic.",
+  "files": {
+    "workflow.json": "4baccf27dc92ab4b9bea6723e2b1a3c11d5147c19000c0114d4a789ad56dff4d",
+    "case.json": "909003d4bcee812d8c24fe38e3e8eb4eb1629f849504308652ba3cf03525dc5d"
+  },
+  "mockRun": {
+    "scope": "Real n8n execution with synthetic invoices and local HTTP Gate mocks. Real PostgreSQL approval/delivery checks are recorded separately in the repository.",
+    "startedAt": "2026-10-07T00:14:11.119Z",
+    "n8nVersion": "2.41.7",
+    "nodeVersion": "v26.10.0",
+    "runnerVersion": "0.1.6",
+    "network": {
+      "mode": "loopback-only",
+      "enforced": true,
+      "interfaces": [
+        "lo"
+      ]
+    },
+    "status": "passed",
+    "exitCode": 0,
+    "checks": [
+      {
+        "name": "n8n execution succeeds",
+        "passed": true
+      },
+      {
+        "name": "Read current status: output 0",
+        "passed": true
+      },
+      {
+        "name": "Review handoff: output 0 count",
+        "passed": true
+      },
+      {
+        "name": "Review handoff: output 0",
+        "passed": true
+      },
+      {
+        "name": "mock: all requests match routes",
+        "passed": true
+      },
+      {
+        "name": "mock: request limits and server",
+        "passed": true
+      },
+      {
+        "name": "Submit invoice for review: POST /documents request count",
+        "passed": true
+      },
+      {
+        "name": "Submit invoice for review: POST /documents request bodies",
+        "passed": true
+      },
+      {
+        "name": "Read current status: GET /documents/00000000-0000-4000-8000-000000000042 request count",
+        "passed": true
+      },
+      {
+        "name": "Read current status: GET /documents/00000000-0000-4000-8000-000000000043 request count",
+        "passed": true
+      }
+    ],
+    "requests": [
+      {
+        "node": "Submit invoice for review",
+        "method": "POST",
+        "path": "/documents",
+        "status": 201,
+        "body": {
+          "intakeKey": "n8n-demo-invoice-42",
+          "extracted": {
+            "invoiceNumber": "DEMO-42",
+            "supplier": "Synthetic Paper Co.",
+            "currency": "USD",
+            "amountMinor": 12850
+          }
+        },
+        "returnedDocument": {
+          "id": "00000000-0000-4000-8000-000000000042",
+          "intakeKey": "n8n-demo-invoice-42",
+          "revision": 1,
+          "status": "REVIEW"
+        }
+      },
+      {
+        "node": "Submit invoice for review",
+        "method": "POST",
+        "path": "/documents",
+        "status": 201,
+        "body": {
+          "intakeKey": "n8n-demo-invoice-43",
+          "extracted": {
+            "invoiceNumber": "DEMO-43",
+            "supplier": "Synthetic Hosting Co.",
+            "currency": "USD",
+            "amountMinor": 67000
+          }
+        },
+        "returnedDocument": {
+          "id": "00000000-0000-4000-8000-000000000043",
+          "intakeKey": "n8n-demo-invoice-43",
+          "revision": 1,
+          "status": "REVIEW"
+        }
+      },
+      {
+        "node": "Read current status",
+        "method": "GET",
+        "path": "/documents/00000000-0000-4000-8000-000000000042",
+        "status": 200,
+        "returnedDocument": {
+          "id": "00000000-0000-4000-8000-000000000042",
+          "intakeKey": "n8n-demo-invoice-42",
+          "revision": 1,
+          "status": "REVIEW"
+        }
+      },
+      {
+        "node": "Read current status",
+        "method": "GET",
+        "path": "/documents/00000000-0000-4000-8000-000000000043",
+        "status": 200,
+        "returnedDocument": {
+          "id": "00000000-0000-4000-8000-000000000043",
+          "intakeKey": "n8n-demo-invoice-43",
+          "revision": 1,
+          "status": "REVIEW"
+        }
+      }
+    ],
+    "handoff": [
+      {
+        "documentId": "00000000-0000-4000-8000-000000000042",
+        "intakeKey": "n8n-demo-invoice-42",
+        "invoiceNumber": "DEMO-42",
+        "status": "REVIEW",
+        "revision": 1,
+        "amountMinor": 12850,
+        "currency": "USD",
+        "reviewUrl": "http://127.0.0.1:3100/?documentId=00000000-0000-4000-8000-000000000042"
+      },
+      {
+        "documentId": "00000000-0000-4000-8000-000000000043",
+        "intakeKey": "n8n-demo-invoice-43",
+        "invoiceNumber": "DEMO-43",
+        "status": "REVIEW",
+        "revision": 1,
+        "amountMinor": 67000,
+        "currency": "USD",
+        "reviewUrl": "http://127.0.0.1:3100/?documentId=00000000-0000-4000-8000-000000000043"
+      }
+    ]
+  },
+  "realGateRun": {
+    "scope": "Original workflow executed from its Manual Trigger, with local-demo Header Auth credential references assigned in a temporary import copy.",
+    "startedAt": "2026-10-07T00:16:06.131Z",
+    "stoppedAt": "2026-10-07T00:16:07.006Z",
+    "n8nVersion": "2.41.7",
+    "apiBaseUrl": "http://127.0.0.1:3100/api",
+    "network": {
+      "mode": "host-network",
+      "destination": "local loopback Gate"
+    },
+    "status": "passed",
+    "cliSteps": [
+      {
+        "name": "import:credentials",
+        "exitCode": 0
+      },
+      {
+        "name": "import:workflow",
+        "exitCode": 0
+      },
+      {
+        "name": "execute",
+        "exitCode": 0
+      }
+    ],
+    "checks": [
+      {
+        "name": "Both synthetic inputs create documents with exact source keys and extracted fields",
+        "passed": true
+      },
+      {
+        "name": "Each created document is read back in REVIEW at revision 1",
+        "passed": true
+      },
+      {
+        "name": "Two handoff items preserve IDs, amounts and browser review links",
+        "passed": true
+      }
+    ],
+    "handoff": [
+      {
+        "documentId": "0d0c1f7d-ab30-4552-bcf6-66f8f61a0dd3",
+        "intakeKey": "n8n-demo-invoice-42",
+        "invoiceNumber": "DEMO-42",
+        "status": "REVIEW",
+        "revision": 1,
+        "amountMinor": 12850,
+        "currency": "USD",
+        "reviewUrl": "http://127.0.0.1:3100/?documentId=0d0c1f7d-ab30-4552-bcf6-66f8f61a0dd3"
+      },
+      {
+        "documentId": "6ca970f4-41e4-4a23-90f0-6f817c929ec9",
+        "intakeKey": "n8n-demo-invoice-43",
+        "invoiceNumber": "DEMO-43",
+        "status": "REVIEW",
+        "revision": 1,
+        "amountMinor": 67000,
+        "currency": "USD",
+        "reviewUrl": "http://127.0.0.1:3100/?documentId=6ca970f4-41e4-4a23-90f0-6f817c929ec9"
+      }
+    ]
+  }
+}

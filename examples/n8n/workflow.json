@@ -1,0 +1,177 @@
+{
+  "name": "Submit extracted invoices to Document Approval Gate",
+  "active": false,
+  "nodes": [
+    {
+      "id": "start",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        80
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "invoices",
+      "name": "Synthetic invoices",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// Configure the Gate reachable from your n8n runtime and the browser review URL.\nconst gateBaseUrl = 'http://127.0.0.1:3100/api';\nconst reviewBaseUrl = 'http://127.0.0.1:3100';\n\n// Reuse each source key when replaying the same document and extracted payload.\n// Editing a reviewed document uses the review interface and its revision check.\nconst invoices = [\n  {\n    \"intakeKey\": \"n8n-demo-invoice-42\",\n    \"extracted\": {\n      \"invoiceNumber\": \"DEMO-42\",\n      \"supplier\": \"Synthetic Paper Co.\",\n      \"currency\": \"USD\",\n      \"amountMinor\": 12850\n    }\n  },\n  {\n    \"intakeKey\": \"n8n-demo-invoice-43\",\n    \"extracted\": {\n      \"invoiceNumber\": \"DEMO-43\",\n      \"supplier\": \"Synthetic Hosting Co.\",\n      \"currency\": \"USD\",\n      \"amountMinor\": 67000\n    }\n  }\n];\nreturn invoices.map(invoice => ({ json: {\n  gateBaseUrl: gateBaseUrl.replace(/\\/$/, ''),\n  reviewBaseUrl: reviewBaseUrl.replace(/\\/$/, ''),\n  ...invoice,\n} }));"
+      },
+      "notes": "Configure both base URLs at the top. The same two source keys are retained on repeated manual execution."
+    },
+    {
+      "id": "intake",
+      "name": "Submit invoice for review",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -140,
+        80
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.gateBaseUrl + '/documents' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Idempotency-Key",
+              "value": "={{ $json.intakeKey }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { intakeKey: $json.intakeKey, extracted: $json.extracted } }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "notes": "Select an HTTP Header Auth credential: name Authorization; value Bearer followed by the configured submitter token. Reuse that credential in Read current status."
+    },
+    {
+      "id": "status",
+      "name": "Read current status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        140,
+        80
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Synthetic invoices').item.json.gateBaseUrl + '/documents/' + $json.document.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "notes": "Use the same Header Auth credential. The API returns the current document revision and status for this tenant."
+    },
+    {
+      "id": "handoff",
+      "name": "Review handoff",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        80
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const source = $('Synthetic invoices').item.json;\nconst document = $json.document;\nreturn { json: {\n  documentId: document.id,\n  intakeKey: document.intakeKey,\n  invoiceNumber: document.extracted.invoiceNumber,\n  status: document.status,\n  revision: document.revision,\n  amountMinor: document.extracted.amountMinor,\n  currency: document.extracted.currency,\n  reviewUrl: source.reviewBaseUrl + '/?documentId=' + encodeURIComponent(document.id),\n} };"
+      }
+    },
+    {
+      "id": "setup",
+      "name": "Setup and run",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -680,
+        -510
+      ],
+      "parameters": {
+        "content": "## Submit extracted invoices for human review\nManual Trigger \u2192 2 synthetic invoices \u2192 Gate intake \u2192 current status \u2192 review links.\n\n### Configure once\n1. Start Document Approval Gate's local review demo (see repository README).\n2. Open **Synthetic invoices**. Set `gateBaseUrl` to the API URL reachable from n8n; set `reviewBaseUrl` to the review page reachable from your browser.\n3. Create an **HTTP Header Auth** credential: header name `Authorization`, value `Bearer <your configured submitter token>`. Select it in **both HTTP Request nodes**.\n4. Click **Execute workflow**. Open each `reviewUrl` in **Review handoff**, review the current revision, then approve or reject in the UI.\n\nDefault local demo: API `http://127.0.0.1:3100/api`; review page `http://127.0.0.1:3100`. Container or cloud n8n needs a reachable Gate address. Standalone API uses `http://127.0.0.1:3000` as the API base.\n\nSource and setup: https://github.com/blucca/document-approval-gate",
+        "width": 750,
+        "height": 535
+      }
+    },
+    {
+      "id": "contract",
+      "name": "Input and delivery contract",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        110,
+        -510
+      ],
+      "parameters": {
+        "content": "## Stable intake keys and explicit approval\nThe two invoices are synthetic. Re-running identical keys and payloads reuses their documents. A reused key with changed extracted JSON returns HTTP 409. Use the review UI to correct an existing document with its current revision.\n\nTo connect your extraction pipeline, supply one item per source document with `gateBaseUrl`, `reviewBaseUrl`, a stable `intakeKey`, and `extracted` JSON. Preserve the node label or update the expressions referencing **Synthetic invoices**.\n\nThis caller submits and reads status. Human decisions happen in the configured review interface; the Gate's worker handles approved snapshots and ERP delivery. ERP credentials and durable idempotency belong to that integration.\n\n**Regression check:** `case.json` runs this workflow with two local HTTP mocks and checks both complete intake bodies, both status reads, and both review handoffs. The mock run uses synthetic Gate responses. The repository's real PostgreSQL checks exercise approval and delivery separately.\n\nMIT \u00b7 Self-initiated sample \u00b7 https://blucca.github.io/",
+        "width": 740,
+        "height": 535
+      }
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Synthetic invoices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Synthetic invoices": {
+      "main": [
+        [
+          {
+            "node": "Submit invoice for review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit invoice for review": {
+      "main": [
+        [
+          {
+            "node": "Read current status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read current status": {
+      "main": [
+        [
+          {
+            "node": "Review handoff",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

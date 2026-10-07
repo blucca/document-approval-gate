@@ -2,6 +2,7 @@ import http from 'node:http';
 import {
   AppError, authorize, createDocument, getDocument, reviseDocument,
   approveDocument, rejectDocument,
+  listDocuments, getDocumentHistory,
 } from './service.js';
 
 const MAX_BODY_BYTES = 256 * 1024;
@@ -66,6 +67,10 @@ export function createServer({ pool, tokens, onError = console.error }) {
         : Object.hasOwn(tokens, token) ? tokens[token] : undefined);
       authorize(principal);
       const path = new URL(req.url, 'http://localhost').pathname;
+      if (req.method === 'GET' && path === '/documents') {
+        send(res, 200, await listDocuments({ pool, principal }));
+        return;
+      }
       if (req.method === 'POST' && path === '/documents') {
         const body = await readJson(req);
         const headerKey = req.headers['idempotency-key'];
@@ -78,12 +83,16 @@ export function createServer({ pool, tokens, onError = console.error }) {
         send(res, result.created ? 201 : 200, result);
         return;
       }
-      const match = /^\/documents\/([^/]+)(?:\/(revise|approve|reject))?$/.exec(path);
+      const match = /^\/documents\/([^/]+)(?:\/(revise|approve|reject|history))?$/.exec(path);
+      if (match && req.method === 'GET' && match[2] === 'history') {
+        send(res, 200, await getDocumentHistory({ pool, principal, id: match[1] }));
+        return;
+      }
       if (match && req.method === 'GET' && !match[2]) {
         send(res, 200, await getDocument({ pool, principal, id: match[1] }));
         return;
       }
-      if (match && req.method === 'POST' && match[2]) {
+      if (match && req.method === 'POST' && ['revise', 'approve', 'reject'].includes(match[2])) {
         const body = await readJson(req);
         const handlers = { revise: reviseDocument, approve: approveDocument, reject: rejectDocument };
         // Trusted identity and route id are supplied separately from user JSON.

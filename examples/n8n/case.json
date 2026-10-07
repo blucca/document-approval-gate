@@ -1,0 +1,244 @@
+{
+  "version": 1,
+  "name": "Two invoice intakes preserve source keys, fields, current status and review links",
+  "input": {
+    "node": "Start",
+    "items": [
+      {}
+    ]
+  },
+  "mocks": [
+    {
+      "node": "Submit invoice for review",
+      "url": "/documents",
+      "routes": [
+        {
+          "method": "POST",
+          "path": "/documents",
+          "responses": [
+            {
+              "status": 201,
+              "json": {
+                "document": {
+                  "id": "00000000-0000-4000-8000-000000000042",
+                  "tenantId": "acme",
+                  "intakeKey": "n8n-demo-invoice-42",
+                  "extracted": {
+                    "invoiceNumber": "DEMO-42",
+                    "supplier": "Synthetic Paper Co.",
+                    "currency": "USD",
+                    "amountMinor": 12850
+                  },
+                  "revision": 1,
+                  "status": "REVIEW",
+                  "approvedSnapshot": null,
+                  "approvedBy": null,
+                  "approvedAt": null,
+                  "rejectionReason": null,
+                  "createdAt": "2026-10-07T00:00:00.000Z",
+                  "updatedAt": "2026-10-07T00:00:00.000Z"
+                },
+                "created": true
+              }
+            },
+            {
+              "status": 201,
+              "json": {
+                "document": {
+                  "id": "00000000-0000-4000-8000-000000000043",
+                  "tenantId": "acme",
+                  "intakeKey": "n8n-demo-invoice-43",
+                  "extracted": {
+                    "invoiceNumber": "DEMO-43",
+                    "supplier": "Synthetic Hosting Co.",
+                    "currency": "USD",
+                    "amountMinor": 67000
+                  },
+                  "revision": 1,
+                  "status": "REVIEW",
+                  "approvedSnapshot": null,
+                  "approvedBy": null,
+                  "approvedAt": null,
+                  "rejectionReason": null,
+                  "createdAt": "2026-10-07T00:00:00.000Z",
+                  "updatedAt": "2026-10-07T00:00:00.000Z"
+                },
+                "created": true
+              }
+            }
+          ],
+          "expect": {
+            "count": 2,
+            "bodies": [
+              {
+                "intakeKey": "n8n-demo-invoice-42",
+                "extracted": {
+                  "invoiceNumber": "DEMO-42",
+                  "supplier": "Synthetic Paper Co.",
+                  "currency": "USD",
+                  "amountMinor": 12850
+                }
+              },
+              {
+                "intakeKey": "n8n-demo-invoice-43",
+                "extracted": {
+                  "invoiceNumber": "DEMO-43",
+                  "supplier": "Synthetic Hosting Co.",
+                  "currency": "USD",
+                  "amountMinor": 67000
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "node": "Read current status",
+      "url": "/documents/{{ $json.document.id }}",
+      "routes": [
+        {
+          "method": "GET",
+          "path": "/documents/00000000-0000-4000-8000-000000000042",
+          "responses": [
+            {
+              "status": 200,
+              "json": {
+                "document": {
+                  "id": "00000000-0000-4000-8000-000000000042",
+                  "tenantId": "acme",
+                  "intakeKey": "n8n-demo-invoice-42",
+                  "extracted": {
+                    "invoiceNumber": "DEMO-42",
+                    "supplier": "Synthetic Paper Co.",
+                    "currency": "USD",
+                    "amountMinor": 12850
+                  },
+                  "revision": 1,
+                  "status": "REVIEW",
+                  "approvedSnapshot": null,
+                  "approvedBy": null,
+                  "approvedAt": null,
+                  "rejectionReason": null,
+                  "createdAt": "2026-10-07T00:00:00.000Z",
+                  "updatedAt": "2026-10-07T00:00:00.000Z"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "count": 1
+          }
+        },
+        {
+          "method": "GET",
+          "path": "/documents/00000000-0000-4000-8000-000000000043",
+          "responses": [
+            {
+              "status": 200,
+              "json": {
+                "document": {
+                  "id": "00000000-0000-4000-8000-000000000043",
+                  "tenantId": "acme",
+                  "intakeKey": "n8n-demo-invoice-43",
+                  "extracted": {
+                    "invoiceNumber": "DEMO-43",
+                    "supplier": "Synthetic Hosting Co.",
+                    "currency": "USD",
+                    "amountMinor": 67000
+                  },
+                  "revision": 1,
+                  "status": "REVIEW",
+                  "approvedSnapshot": null,
+                  "approvedBy": null,
+                  "approvedAt": null,
+                  "rejectionReason": null,
+                  "createdAt": "2026-10-07T00:00:00.000Z",
+                  "updatedAt": "2026-10-07T00:00:00.000Z"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "count": 1
+          }
+        }
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "node": "Read current status",
+      "equals": [
+        {
+          "document": {
+            "id": "00000000-0000-4000-8000-000000000042",
+            "tenantId": "acme",
+            "intakeKey": "n8n-demo-invoice-42",
+            "extracted": {
+              "invoiceNumber": "DEMO-42",
+              "supplier": "Synthetic Paper Co.",
+              "currency": "USD",
+              "amountMinor": 12850
+            },
+            "revision": 1,
+            "status": "REVIEW",
+            "approvedSnapshot": null,
+            "approvedBy": null,
+            "approvedAt": null,
+            "rejectionReason": null,
+            "createdAt": "2026-10-07T00:00:00.000Z",
+            "updatedAt": "2026-10-07T00:00:00.000Z"
+          }
+        },
+        {
+          "document": {
+            "id": "00000000-0000-4000-8000-000000000043",
+            "tenantId": "acme",
+            "intakeKey": "n8n-demo-invoice-43",
+            "extracted": {
+              "invoiceNumber": "DEMO-43",
+              "supplier": "Synthetic Hosting Co.",
+              "currency": "USD",
+              "amountMinor": 67000
+            },
+            "revision": 1,
+            "status": "REVIEW",
+            "approvedSnapshot": null,
+            "approvedBy": null,
+            "approvedAt": null,
+            "rejectionReason": null,
+            "createdAt": "2026-10-07T00:00:00.000Z",
+            "updatedAt": "2026-10-07T00:00:00.000Z"
+          }
+        }
+      ]
+    },
+    {
+      "node": "Review handoff",
+      "count": 2,
+      "equals": [
+        {
+          "documentId": "00000000-0000-4000-8000-000000000042",
+          "intakeKey": "n8n-demo-invoice-42",
+          "invoiceNumber": "DEMO-42",
+          "status": "REVIEW",
+          "revision": 1,
+          "amountMinor": 12850,
+          "currency": "USD",
+          "reviewUrl": "http://127.0.0.1:3100/?documentId=00000000-0000-4000-8000-000000000042"
+        },
+        {
+          "documentId": "00000000-0000-4000-8000-000000000043",
+          "intakeKey": "n8n-demo-invoice-43",
+          "invoiceNumber": "DEMO-43",
+          "status": "REVIEW",
+          "revision": 1,
+          "amountMinor": 67000,
+          "currency": "USD",
+          "reviewUrl": "http://127.0.0.1:3100/?documentId=00000000-0000-4000-8000-000000000043"
+        }
+      ]
+    }
+  ]
+}

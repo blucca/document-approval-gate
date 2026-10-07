@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Correct an invoice, freeze its approved revision, then replay a lost ERP response. An interactive document approval gate with a real PostgreSQL companion.">
+  <meta name="theme-color" content="#f4f3ef">
+  <title>Document Approval Gate · Blucca</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <div class="mode-bar"><span class="mode-dot"></span><span id="mode-label">Loading demo configuration…</span></div>
+  <div class="page">
+    <header class="masthead">
+      <a class="brand" href="https://blucca.github.io/" aria-label="Blucca home"><span class="brand-mark">b.</span><span>BLUCCA <span class="brand-divider">/</span> SYSTEMS LAB</span></a>
+      <a class="source-link" href="https://github.com/blucca/document-approval-gate">Source & local setup <span aria-hidden="true">↗</span></a>
+    </header>
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <div><p class="eyebrow">INTERACTIVE WORKING SAMPLE <span class="tiny-line"></span> ABOUT 60 SECONDS</p><h1 id="page-title">An approval that<br><span>survives the retry.</span></h1></div>
+        <p class="intro-copy">Correct the invoice. Approve that exact revision. Watch a lost ERP response replay with <strong>one business write.</strong></p>
+      </section>
+      <section class="demo" aria-label="Interactive invoice approval demo">
+        <div class="demo-heading"><div><span class="section-number">01</span><h2>Document approval gate</h2></div><button id="reset" class="text-button" type="button">↺ Reset demo</button></div>
+        <ol class="steps" aria-label="Approval process">
+          <li id="step-review"><span>1</span><div>Correct the amount<small>Review revision 1</small></div></li>
+          <li id="step-approve"><span>2</span><div>Freeze approval<small>One reviewed snapshot</small></div></li>
+          <li id="step-deliver"><span>3</span><div>Lose the response<small>ERP accepts the write</small></div></li>
+          <li id="step-retry"><span>4</span><div>Retry the same key<small>Recover the receipt</small></div></li>
+        </ol>
+        <div class="next-step"><span class="next-label">YOUR NEXT STEP</span><p id="next-step">Loading your synthetic invoice…</p><span aria-hidden="true">↓</span></div>
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+        <div class="workspace">
+          <section class="review-panel" aria-labelledby="review-title">
+            <div class="panel-title"><h3 id="review-title">Review desk</h3><span class="pill" id="document-status">LOADING</span></div>
+            <div class="document-tabs" role="group" aria-label="Choose a synthetic invoice" id="document-tabs"></div>
+            <div class="invoice-sheet">
+              <div class="invoice-top"><div class="invoice-icon" aria-hidden="true">↳</div><span class="eyebrow">EXTRACTED INVOICE</span><span class="revision" id="revision-label">REV 1</span></div>
+              <h4 id="supplier">Synthetic Paper Company</h4>
+              <div class="invoice-meta"><span id="invoice-number">DEMO-2048</span><span id="issued-at">2026-10-01</span></div>
+              <div class="amount-form"><label for="amount">Invoice total <span id="currency">USD</span></label><div class="amount-input-wrap"><span aria-hidden="true">$</span><input id="amount" type="number" min="0.01" step="0.01" inputmode="decimal" value="128.50" autocomplete="off" aria-describedby="amount-help"></div><p id="amount-help">The source total is <strong>$125.80</strong>. Correct the extracted amount.</p><div class="edit-actions"><button type="button" id="use-correction" class="text-button">Use $125.80 <span aria-hidden="true">↗</span></button><button type="button" id="save" class="button button-small">Save correction</button></div></div>
+              <div class="snapshot-row"><span>Approved snapshot</span><strong id="snapshot-status">Awaiting review</strong></div>
+            </div>
+            <div class="decision-actions"><button type="button" class="button button-primary" id="approve">Approve revision 1 <span aria-hidden="true">→</span></button><button type="button" class="button button-secondary" id="reject-toggle" aria-expanded="false" aria-controls="reject-form">Reject</button></div>
+            <form id="reject-form" class="reject-form" hidden><label for="reject-reason">Reason for rejection</label><input id="reject-reason" type="text" value="Supplier details need verification" maxlength="2000" required><button class="button button-small" type="submit" id="reject-confirm">Confirm rejection</button></form>
+            <div class="stale-check"><button id="stale" type="button" class="text-button" disabled>Try stale approval <span aria-hidden="true">↗</span></button><span id="stale-help">Available after a correction</span></div>
+            <div id="stale-result" class="stale-result" role="status" hidden></div>
+          </section>
+          <section class="delivery-panel" aria-labelledby="delivery-title">
+            <div class="panel-title"><h3 id="delivery-title">ERP delivery</h3><span class="signal" id="delivery-status">Waiting for approval</span></div>
+            <div class="metrics"><div><span class="metric-number" id="attempt-count">0</span><span class="metric-label">HTTP attempts</span></div><span class="metric-separator" aria-hidden="true">/</span><div><span class="metric-number metric-write" id="write-count">0</span><span class="metric-label">Business writes</span></div></div>
+            <p class="metric-caption" id="metric-caption">Demo-wide counters across all synthetic invoices.</p>
+            <div class="delivery-explanation"><span class="small-icon" aria-hidden="true">↻</span><p id="delivery-copy">The first delivery deliberately loses its response after the ERP accepts the invoice. Retry to recover the same receipt.</p></div>
+            <button type="button" class="button button-dark" id="deliver" disabled>Deliver to ERP <span aria-hidden="true">→</span></button>
+            <p class="queue-note">Runs the next queued delivery.</p><div class="key-block"><span class="eyebrow">DELIVERY IDEMPOTENCY KEY</span><code id="delivery-key">Created on approval</code><p>The ERP uses this key to recognize a repeated request.</p></div>
+            <div id="receipt-block" class="receipt-block" hidden><div><span class="receipt-check">✓</span><strong>Receipt recorded</strong><span class="pill">HTTP 200</span></div><pre id="receipt"></pre></div>
+            <p class="erp-condition">Production single-write behavior requires ERP-side persistent idempotency. This synthetic ERP holds receipts in memory.</p><details class="payload-details"><summary>Inspect the frozen payload <span aria-hidden="true">+</span></summary><pre id="payload">Approve a revision to freeze its payload.</pre></details>
+          </section>
+        </div>
+        <section class="audit" aria-labelledby="audit-title"><div class="audit-heading"><div><span class="section-number">02</span><h3 id="audit-title">Follow the evidence</h3></div><span class="eyebrow" id="audit-mode">IN-TAB SIMULATED EVENTS</span></div><ol id="timeline" class="timeline"></ol></section>
+      </section>
+      <section class="proof-strip"><div class="proof-mark" aria-hidden="true">{ }</div><p id="proof-copy">The browser sample models the workflow in this tab. The companion implementation runs on PostgreSQL with real HTTP delivery and a synthetic ERP.</p><a href="https://github.com/blucca/document-approval-gate/blob/main/examples/observed-results.json">Read the 13-scenario run <span aria-hidden="true">↗</span></a></section>
+      <section class="offer" aria-labelledby="offer-title"><div><p class="eyebrow">TAKE THIS INTO YOUR WORKFLOW</p><h2 id="offer-title">Your reviewed invoice.<br>Your ERP. A clear handoff.</h2><p>Connect your existing review UI and extracted JSON inputs to a revision-aware approval and delivery service.</p><p class="scope">One schema · one sandbox endpoint · eight agreed checks · one revision round</p></div><div class="offer-action"><p class="milestone">Proposed first milestone</p><div class="price">$2,400 <span>fixed scope</span></div><p>Plan for five working days once scope and interfaces are ready. Exact dates agreed before payment.</p><a class="button button-primary" href="mailto:belgialucca@gmail.com?subject=Invoice-to-ERP%20implementation&body=Our%20current%20review%20UI%3A%0AExtracted%20JSON%20sample%3A%0AERP%20sandbox%20endpoint%3A%0ATarget%20date%3A">Discuss your invoice flow <span aria-hidden="true">↗</span></a><span class="email">belgialucca@gmail.com</span></div></section>
+    </main>
+    <footer><span>BLUCCA · AI-led engineering, with inspectable work.</span><a href="https://github.com/blucca/document-approval-gate">MIT-licensed sample ↗</a></footer>
+  </div>
+</body>
+</html>

@@ -379,3 +379,32 @@ scenario('expired-lease-fencing', 'Expired claim is retried; the stale worker yi
   assert.equal((await request('GET', `/documents/${document.id}`)).body.document.status, 'SYNCED');
   return { fault: 'Database lease expiry injected while first HTTP response is held', replacementWorker: newResult.outcome, staleWorker: oldResult.outcome, remoteBusinessWrites: remote.ledger.size, sameIdempotencyKey: true, outboxAttempts: finished.attempts, finalStatus: finished.status };
 });
+
+scenario('review-read-model', 'Review queue and delivery history stay within the authenticated tenant', async () => {
+  const document = await intake();
+  const foreign = await intake({ token: 'reviewer-b' });
+  const own = await request('GET', '/documents');
+  assert.equal(own.status, 200);
+  assert.deepEqual(own.body.documents.map(row => row.id), [document.id]);
+  assert.equal((await request('GET', `/documents/${foreign.id}/history`)).status, 404);
+  assert.equal((await request('GET', '/documents', undefined, null)).status, 401);
+  await request('POST', `/documents/${document.id}/revise`, { expectedRevision: 1, extracted: { ...extracted, amountMinor: 12580 } });
+  const stale = await request('POST', `/documents/${document.id}/approve`, { expectedRevision: 1 });
+  assert.equal(stale.status, 409);
+  await request('POST', `/documents/${document.id}/approve`, { expectedRevision: 2 });
+  const remote = await erp({ mode: 'disconnect-after-accept' });
+  await deliverOne({ pool, erpUrl: remote.url });
+  const pending = (await request('GET', `/documents/${document.id}/history`)).body;
+  assert.equal(pending.delivery.status, 'READY');
+  assert.equal(pending.delivery.attempts, 1);
+  assert.equal(pending.delivery.payload.extracted.amountMinor, 12580);
+  await deliverOne({ pool, erpUrl: remote.url });
+  const final = (await request('GET', `/documents/${document.id}/history`)).body;
+  assert.deepEqual(final.events.map(event => event.eventType), ['INTAKE', 'REVISED', 'APPROVED', 'ERP_RETRY', 'ERP_SYNCED']);
+  assert.equal(final.delivery.attempts, 2);
+  assert.equal(final.delivery.remoteResponse.httpStatus, 200);
+  assert.equal(final.delivery.idempotencyKey, pending.delivery.idempotencyKey);
+  return { ownQueueCount: own.body.documents.length, crossTenantHistoryStatus: 404, staleApprovalStatus: stale.status,
+    frozenAmountMinor: final.delivery.payload.extracted.amountMinor, events: final.events.map(event => event.eventType),
+    httpAttempts: remote.requests.length, remoteBusinessWrites: remote.ledger.size };
+});
