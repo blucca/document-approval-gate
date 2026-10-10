@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +34,6 @@ const report = {
     deliveryContract: 'At-least-once delivery; one remote business write requires ERP-side durable idempotency',
     fixtures: 'Synthetic invoices and identities',
   },
-  sourceSha256: {},
   scenarios: [],
 };
 let admin;
@@ -117,9 +116,6 @@ before(async () => {
   await admin.query(`CREATE SCHEMA ${schema}`);
   pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 16, options: `-c search_path=${schema},public` });
   await pool.query(await readFile(resolve(project, 'db/schema.sql'), 'utf8'));
-  for (const filename of ['db/schema.sql', 'src/api.js', 'src/service.js', 'src/worker.js', 'test/integration.test.js', 'test/synthetic-erp.js']) {
-    report.sourceSha256[filename] = createHash('sha256').update(await readFile(resolve(project, filename))).digest('hex');
-  }
   api = createServer({ pool, tokens, onError(error) { serverErrors.push({ message: error.message, code: error.code }); } });
   await new Promise((accept, reject) => {
     api.once('error', reject);
